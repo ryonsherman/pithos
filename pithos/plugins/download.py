@@ -11,6 +11,7 @@ class Download(PithosPlugin):
 
     def __init__(self, *args, **kwargs):
         PithosPlugin.__init__(self, *args, **kwargs)
+        self.grid = self.window.prefs_dlg.builder.get_object('grid8')
         self.window.prefs_dlg = self.prefs_dlg
         self.icon = self.window.plugins.get('notification_icon', False)
 
@@ -18,13 +19,11 @@ class Download(PithosPlugin):
         self.window.song_menu.append(self.song_menu_item)
         if self.icon:
             self.icon.menu.append(self.icon_menu_item)
-        print "Download plugin enabled"
 
     def on_disable(self):
         self.window.song_menu.remove(self.song_menu_item)
         if self.icon:
             self.icon.menu.remove(self.icon_menu_item)
-        print "Download plugin disabled"
 
     @property
     def prefs_dlg(self):
@@ -34,17 +33,20 @@ class Download(PithosPlugin):
             pref = self.download_pref
 
             def show(widget):
-                pref.set_active(dialog.get_preferences()['download'])
+                self.download_pref.set_active(dialog.get_preferences().get('download', False))
+                self.auto_download_pref.set_active(dialog.get_preferences().get('auto_download', False))
             dialog.connect('show', show)
 
             def response(widget, response):
                 if response == Gtk.ResponseType.OK:
-                    dialog.get_preferences()['download'] = pref.get_active()
+                    dialog.get_preferences()['download'] = self.download_pref.get_active()
+                    dialog.get_preferences()['auto_download'] = self.auto_download_pref.get_active()
                     dialog.save()
             dialog.connect('response', response)
 
-            grid = dialog.builder.get_object('grid8')
-            grid.attach(self.download_pref, 0, len(grid.get_children()), 1, 1)
+            self.grid.attach(self.download_pref, 0, len(self.grid.get_children()), 1, 1)
+            self.grid.attach(self.auto_download_pref, 0, len(self.grid.get_children()), 1, 1)
+            self.grid.attach(self.download_folder_pref, 0, len(self.grid.get_children()), 1, 1)
 
             self._prefs_dlg = dialog
         return dialog
@@ -62,20 +64,56 @@ class Download(PithosPlugin):
 
             def toggled(widget):
                 if widget.get_active():
-                    print 'show additional options'
+                    self.auto_download_pref.show()
+                    self.download_folder_pref.show()
                 else:
-                    print 'hide additional options'
+                    self.auto_download_pref.hide()
+                    self.download_folder_pref.hide()
             pref.connect('toggled', toggled)
 
             self._download_pref = pref
         return pref
 
     @property
-    def additional_preferences(self):
-        prefs = getattr(self, '_preferences', False)
-        if not prefs:
-            prefs = None
-        return prefs
+    def auto_download_pref(self):
+        pref = getattr(self, '_auto_download_pref', False)
+        if not pref:
+            pref = Gtk.CheckButton("Automatically download loved songs")
+            pref.set_margin_left(25)
+            pref.hide()
+
+            def toggled(widget):
+                self.download_folder_pref.set_sensitive(widget.get_active())
+            pref.connect('toggled', toggled)
+
+            self._auto_download_pref = pref
+        return pref
+
+    @property
+    def download_folder_pref(self):
+        pref = getattr(self, '_download_folder_pref', False)
+        if not pref:
+            pref = Gtk.Grid()
+            pref.set_sensitive(False)
+            pref.set_margin_left(30)
+            pref.set_column_spacing(10)
+            pref.hide()
+
+            label = Gtk.Label("Folder:")
+            label.show()
+
+            entry = Gtk.Entry()
+            entry.show()
+
+            button = Gtk.Button(" ... ")
+            button.show()
+
+            pref.attach(label, 0, 0, 1, 1)
+            pref.attach(entry, 1, 0, 1, 1)
+            pref.attach(button, 2, 0, 1, 1)
+
+            self._download_folder_pref = pref
+        return pref
 
     @property
     def song_menu_item(self):
